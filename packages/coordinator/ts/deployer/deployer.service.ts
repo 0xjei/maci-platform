@@ -1,9 +1,23 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { http } from "viem"
-import { createBundlerClient, ENTRYPOINT_ADDRESS_V07 } from "permissionless";
+import { deserializePermissionAccount } from "@zerodev/permissions";
+import { toECDSASigner } from "@zerodev/permissions/signers";
+import { createKernelAccountClient } from "@zerodev/sdk";
+import { KERNEL_V3_1 } from "@zerodev/sdk/constants";
+// import { createBundlerClient, ENTRYPOINT_ADDRESS_V07 } from "permissionless";
+import { createPublicClient, http } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import hre from "hardhat";
+import { 
+  ConstantInitialVoiceCreditProxy__factory as ConstantInitialVoiceCreditProxyFactory, 
+  ContractStorage, 
+  Deployment, 
+  FreeForAllGatekeeper__factory as FreeForAllGatekeeperFactory
+ } from "maci-contracts";
 
+// import { genPimlicoRPCUrl } from "../common/pimlico";
+import { CryptoService } from "../crypto/crypto.service";
 import { FileService } from "../file/file.service";
-import { genPimlicoRPCUrl } from "../common/pimlico";
+
 import { IDeployMaciArgs, IDeployPollArgs } from "./types";
 
 /**
@@ -17,14 +31,61 @@ export class DeployerService {
   private readonly logger = new Logger(DeployerService.name);
 
   /**
+   * Deployment instance
+   */
+  private readonly deployment: Deployment;
+
+  /**
+   * Contract storage instance
+   */
+  private readonly storage: ContractStorage;
+
+  /**
    * Create a new instance of DeployerService
-   * @param fileService 
+   * @param fileService
    */
   constructor(
+    private readonly cryptoService: CryptoService,
     private readonly fileService: FileService,
   ) {
     this.fileService = fileService;
     this.logger = new Logger(DeployerService.name);
+
+    this.deployment = Deployment.getInstance(hre);
+    this.deployment.setHre(hre);
+
+    this.storage = ContractStorage.getInstance()
+  }
+
+  /**
+   * Generate a session key
+   * 
+   * @returns session key address
+   */
+  generateSessionKey(): `0x${string}` {
+    // const sessionPrivateKey = generatePrivateKey();
+
+    // const sessionKeySigner = toECDSASigner({
+    //   signer: privateKeyToAccount(sessionPrivateKey),
+    // });
+
+    // const sessionKeyAddress = sessionKeySigner.account.address;
+
+    const sessionKeyAddress = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+    const sessionPrivateKey = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+    // save the key
+    this.fileService.storeSessionKey(sessionPrivateKey, sessionKeyAddress);
+
+    return sessionKeyAddress;
+  }
+
+  /**
+   * Deactivate a session key
+   *
+   * @param sessionKeyAddress - key address
+   */
+  deactivateSessionKey(sessionKeyAddress: `0x${string}`): void {
+    this.fileService.deleteSessionKey(sessionKeyAddress);
   }
 
   /**
@@ -35,69 +96,64 @@ export class DeployerService {
    * @returns - deployed maci contract
    * @throws error if deploy is not successful
    */
-  async deployMaci({
-    operation,
-    chainId,
-    config,
-  }: IDeployMaciArgs) {
-    const pimlicoRPCUrl = genPimlicoRPCUrl(chainId)
+  async deployMaci({ approval, sessionKeyAddress, chainId, config }: IDeployMaciArgs) {
+    // // get the session key from storage
+    // const sessionKey = this.fileService.getSessionKey(sessionKeyAddress);
 
-    const bundlerClient = createBundlerClient({
-      transport: http(pimlicoRPCUrl),
-      entryPoint: ENTRYPOINT_ADDRESS_V07,
-    })
+    // const publicClient = createPublicClient({
+    //   transport: http(process.env.PIMLICO_RPC_URL),
+    // });
 
-    const gas = await bundlerClient.estimateUserOperationGas({
-      userOperation: operation.userOperation,
-    })
+    // // Using a stored private key
+    // const sessionKeySigner = toECDSASigner({
+    //   signer: privateKeyToAccount(sessionKey),
+    // });
 
-    console.log("gas", gas)
-    const opHash = await bundlerClient.sendUserOperation({
-      userOperation: operation.userOperation,
-    })
+    // const sessionKeyAccount = await deserializePermissionAccount(
+    //   publicClient,
+    //   ENTRYPOINT_ADDRESS_V07,
+    //   KERNEL_V3_1,
+    //   approval,
+    //   sessionKeySigner,
+    // );
 
-    const userOperationReceipt = await bundlerClient.waitForUserOperationReceipt({
-      hash: opHash,
-      timeout: 100000
-    })
+    // const kernelClient = createKernelAccountClient({
+    //   bundlerTransport: http(process.env.PIMLICO_RPC_URL),
+    //   entryPoint: ENTRYPOINT_ADDRESS_V07,
+    //   account: sessionKeyAccount,
+    // });
 
-    const receipt = await bundlerClient.getUserOperationReceipt({
-      hash: opHash
-    })
+    // // create first user op for voice credit proxy
+    // const gatekeeperConfig = config.ConstantInitialVoiceCreditProxy 
+    // const voiceCreditProxyConfig = config.ConstantInitialVoiceCreditProxy
 
-    console.log(receipt)
+    // if (voiceCreditProxyConfig?.deploy) {
+    //   const voiceCreditsProxyDeployTx = await kernelClient.deployContract({
+    //     abi: ConstantInitialVoiceCreditProxyFactory.abi,
+    //     args: [voiceCreditProxyConfig.amount],
+    //     bytecode: ConstantInitialVoiceCreditProxyFactory.bytecode,
+    //     account: sessionKeyAccount.address,
+    //   })
 
-    // need to figure out how to get the address of the deployed MACI contract
+    //   console.log(voiceCreditsProxyDeployTx)
+    // } else {
+
+    // }
+
+    // if (gatekeeperConfig?.deploy) {
+    //   const gatekeeperDeployTx = await kernelClient.deployContract({
+    //     abi: FreeForAllGatekeeperFactory.abi,
+    //     args: [gatekeeperConfig.amount],
+    //     bytecode: FreeForAllGatekeeperFactory.bytecode,
+    //     account: sessionKeyAccount.address,
+    //   })
+
+    //   console.log(gatekeeperDeployTx)
+    // } else {
+
+    // }
   }
 
-  async deployPoll({
-   operation,
-   chainId,
-    config
-  }: IDeployPollArgs) {
-
-    const pimlicoRPCUrl = genPimlicoRPCUrl(chainId)
-
-    const bundlerClient = createBundlerClient({
-      transport: http(pimlicoRPCUrl),
-      entryPoint: ENTRYPOINT_ADDRESS_V07,
-    })
-
-    const opHash = await bundlerClient.sendUserOperation({
-      userOperation: operation.userOperation,
-    })
-
-    const userOperationReceipt = await bundlerClient.waitForUserOperationReceipt({
-      hash: opHash,
-      timeout: 100000
-    })
-
-    const receipt = await bundlerClient.getUserOperationReceipt({
-      hash: opHash
-    })
-
-    console.log(receipt)
-
-    // get the address of the deployed poll contract from the maci contract
+  async deployPoll({ approval, sessionKeyAddress, chainId, config }: IDeployPollArgs) {
   }
 }

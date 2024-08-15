@@ -4,11 +4,11 @@
  * @returns the RPCUrl for the network
  */
 export const genPimlicoRPCUrl = (network: string): string => {
-    const pimlicoAPIKey = process.env.PIMLICO_API_KEY;
+  const pimlicoAPIKey = process.env.PIMLICO_API_KEY;
 
-    if (!pimlicoAPIKey) {
-        throw new Error("PIMLICO_API_KEY is not set");
-    }
+  if (!pimlicoAPIKey) {
+    throw new Error("PIMLICO_API_KEY is not set");
+  }
 
-    return `https://api.pimlico.io/v2/${network}rpc?apikey=${pimlicoAPIKey}`;
+  return `https://api.pimlico.io/v2/${network}rpc?apikey=${pimlicoAPIKey}`;
 };
